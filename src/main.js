@@ -61,6 +61,7 @@ const allowedOrigins = [
 
 const statusEl = document.getElementById("status");
 const MODES = new Set(["editing", "suggesting", "viewing"]);
+const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
 let superdoc = null;
 let parentOrigin = null;
@@ -115,15 +116,34 @@ async function handleLoad(data) {
   }
 
   const mode = MODES.has(data.mode) ? data.mode : "suggesting";
+  const fileName = typeof data.fileName === "string" ? data.fileName : "document.docx";
   const user =
     data.user && typeof data.user.name === "string"
       ? { name: data.user.name, email: typeof data.user.email === "string" ? data.user.email : undefined }
       : { name: "Deal Oracle" };
 
+  // Fetch the bytes here and hand SuperDoc a real File. Passing the presigned
+  // URL directly makes SuperDoc do its own fetch-and-wrap, which fails with a
+  // bare "Failed to create file object" that says nothing about whether the
+  // download, the content type, or the filename was the problem. Doing it here
+  // means a download failure reports its own HTTP status.
+  let file;
+  try {
+    const response = await fetch(data.docUrl);
+    if (!response.ok) {
+      fail(`could not download the document: HTTP ${response.status}`);
+      return;
+    }
+    file = new File([await response.blob()], fileName, { type: DOCX_MIME });
+  } catch (error) {
+    fail(`could not download the document: ${error instanceof Error ? error.message : String(error)}`);
+    return;
+  }
+
   try {
     superdoc = new SuperDoc({
       selector: "#editor",
-      document: data.docUrl,
+      document: file,
       documentMode: mode,
       // Permission axis, separate from documentMode. Without it the editor
       // renders but every mutation is refused.
@@ -133,7 +153,7 @@ async function handleLoad(data) {
       toolbar: "#toolbar",
       onReady: () => {
         setStatus(null);
-        send({ type: "loaded", fileName: typeof data.fileName === "string" ? data.fileName : "document.docx" });
+        send({ type: "loaded", fileName });
       },
       onException: ({ error }) => {
         fail(`SuperDoc failed to load the document: ${error?.message ?? String(error)}`);
@@ -160,7 +180,7 @@ async function handleSave() {
       method: "PUT",
       body: blob,
       headers: {
-        "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "Content-Type": DOCX_MIME,
       },
     });
     if (!response.ok) {
