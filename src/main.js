@@ -21,6 +21,18 @@
 // and every outbound message targets the specific origin that sent `load`
 // (until then, `ready` targets the allowlist entries, never "*").
 
+// ⚠️ PINNED TO SUPERDOC 1.x (the `legacy` dist-tag), NOT `latest`.
+//
+// superdoc@2.4.0 ships a rewritten v2 engine that RENDERS but does not EDIT.
+// Probed live on 2026-08-07: it mounts a custom layered renderer
+// (.superdoc__layers / .superdoc__document / .superdoc__selection-layer) with
+// zero contenteditable nodes and zero ProseMirror nodes, and its Document API
+// reports `mutation.operations: "MVP supports comments.create on body text
+// only"`. The toolbar renders and export works, so it looks healthy — it just
+// silently swallows every keystroke, which is exactly how it reached
+// production here. 1.46.1 is the ProseMirror-based editor with real typing and
+// track changes. Do not bump to 2.x until v2's capabilities report text
+// mutation as available.
 import { SuperDoc } from "superdoc";
 import "superdoc/style.css";
 
@@ -113,9 +125,12 @@ async function handleLoad(data) {
       selector: "#editor",
       document: data.docUrl,
       documentMode: mode,
+      // Permission axis, separate from documentMode. Without it the editor
+      // renders but every mutation is refused.
+      role: "editor",
       user,
       contained: true,
-      ui: { toolbar: { container: "#toolbar" } },
+      toolbar: "#toolbar",
       onReady: () => {
         setStatus(null);
         send({ type: "loaded", fileName: typeof data.fileName === "string" ? data.fileName : "document.docx" });
