@@ -24,7 +24,8 @@
 import { SuperDoc } from "superdoc";
 import "superdoc/style.css";
 
-const DEFAULT_ALLOWED = "http://localhost:3000,https://deal-oracle-web.vercel.app";
+const DEFAULT_ALLOWED =
+  "http://localhost:3000,https://deal-oracle-web-novadominion.vercel.app,https://deal-oracle-web-git-file-viewers-native-novadominion.vercel.app";
 const allowedOrigins = (import.meta.env.VITE_ALLOWED_PARENT_ORIGINS || DEFAULT_ALLOWED)
   .split(",")
   .map((value) => value.trim())
