@@ -181,6 +181,16 @@ window.addEventListener("message", (event) => {
       // tell "the document did not load" apart from "the document loaded but
       // refuses keystrokes" without cross-origin DOM access.
       const editor = superdoc?.activeEditor;
+      // Getters on the editor can throw before the document settles; a debug
+      // probe must never itself become the error being investigated.
+      const safe = (fn) => {
+        try {
+          const v = fn();
+          return typeof v === "object" && v !== null ? JSON.parse(JSON.stringify(v)) : (v ?? null);
+        } catch (e) {
+          return `THREW: ${e?.message ?? String(e)}`;
+        }
+      };
       // Walk shadow roots too — a surface mounted in a shadow tree is invisible
       // to a plain document.querySelectorAll and would read as "not rendered".
       const countDeep = (selector) => {
@@ -201,6 +211,16 @@ window.addEventListener("message", (event) => {
           role: superdoc?.config?.role ?? null,
           hasActiveEditor: Boolean(editor),
           editorKeys: editor ? Object.keys(editor).slice(0, 40) : null,
+          editorVersion: editor?.editorVersion ?? null,
+          mutationReadiness: safe(() => editor?.documentMutationReadiness),
+          apiUnavailableReason: safe(() => editor?.documentApiUnavailableReason),
+          capabilities: safe(() => editor?.capabilities),
+          optionKeys: editor?.options ? Object.keys(editor.options).slice(0, 60) : null,
+          optionEditable: safe(() => editor?.options?.editable),
+          optionMode: safe(() => editor?.options?.documentMode ?? editor?.options?.mode),
+          hasMount: Boolean(editor?.mount),
+          hasAuthoring: Boolean(editor?.authoring),
+          hasEditCommands: Boolean(editor?.editCommands),
           editorIsEditable: editor?.isEditable ?? null,
           editorOptionsEditable: editor?.options?.editable ?? null,
           hasView: Boolean(editor?.view),
