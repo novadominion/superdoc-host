@@ -176,6 +176,28 @@ window.addEventListener("message", (event) => {
       if (superdoc && MODES.has(data.mode)) superdoc.setDocumentMode?.(data.mode);
       break;
     }
+    case "debug": {
+      // Read-only introspection of the editor's editability, so the parent can
+      // tell "the document did not load" apart from "the document loaded but
+      // refuses keystrokes" without cross-origin DOM access.
+      const editor = superdoc?.activeEditor;
+      send({
+        type: "debug",
+        info: {
+          hasSuperdoc: Boolean(superdoc),
+          documentMode: superdoc?.config?.documentMode ?? null,
+          role: superdoc?.config?.role ?? null,
+          hasActiveEditor: Boolean(editor),
+          editorIsEditable: editor?.isEditable ?? null,
+          editorOptionsEditable: editor?.options?.editable ?? null,
+          contentEditableTrue: document.querySelectorAll('[contenteditable="true"]').length,
+          contentEditableFalse: document.querySelectorAll('[contenteditable="false"]').length,
+          proseMirrorNodes: document.querySelectorAll(".ProseMirror").length,
+          activeElement: document.activeElement?.className || document.activeElement?.tagName || null,
+        },
+      });
+      break;
+    }
     default:
       break;
   }
