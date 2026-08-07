@@ -181,6 +181,18 @@ window.addEventListener("message", (event) => {
       // tell "the document did not load" apart from "the document loaded but
       // refuses keystrokes" without cross-origin DOM access.
       const editor = superdoc?.activeEditor;
+      // Walk shadow roots too — a surface mounted in a shadow tree is invisible
+      // to a plain document.querySelectorAll and would read as "not rendered".
+      const countDeep = (selector) => {
+        let n = 0;
+        const walk = (root) => {
+          n += root.querySelectorAll(selector).length;
+          for (const el of root.querySelectorAll("*")) if (el.shadowRoot) walk(el.shadowRoot);
+        };
+        walk(document);
+        return n;
+      };
+      const editorEl = document.getElementById("editor");
       send({
         type: "debug",
         info: {
@@ -188,11 +200,19 @@ window.addEventListener("message", (event) => {
           documentMode: superdoc?.config?.documentMode ?? null,
           role: superdoc?.config?.role ?? null,
           hasActiveEditor: Boolean(editor),
+          editorKeys: editor ? Object.keys(editor).slice(0, 40) : null,
           editorIsEditable: editor?.isEditable ?? null,
           editorOptionsEditable: editor?.options?.editable ?? null,
-          contentEditableTrue: document.querySelectorAll('[contenteditable="true"]').length,
-          contentEditableFalse: document.querySelectorAll('[contenteditable="false"]').length,
-          proseMirrorNodes: document.querySelectorAll(".ProseMirror").length,
+          hasView: Boolean(editor?.view),
+          viewEditable: editor?.view?.editable ?? null,
+          viewDomTag: editor?.view?.dom?.tagName ?? null,
+          viewDomContentEditable: editor?.view?.dom?.getAttribute?.("contenteditable") ?? null,
+          viewDomConnected: editor?.view?.dom?.isConnected ?? null,
+          contentEditableTrue: countDeep('[contenteditable="true"]'),
+          proseMirrorNodes: countDeep(".ProseMirror"),
+          shadowRoots: [...document.querySelectorAll("*")].filter((el) => el.shadowRoot).length,
+          editorElChildren: editorEl?.children?.length ?? null,
+          editorElHtml: (editorEl?.innerHTML ?? "").slice(0, 600),
           activeElement: document.activeElement?.className || document.activeElement?.tagName || null,
         },
       });
