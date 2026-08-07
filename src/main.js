@@ -16,20 +16,36 @@
 //   parent -> host   set-mode {mode}              (editing|suggesting|viewing)
 //   host  -> parent  dirty                        (first content change since load/save)
 //
-// Origin discipline: messages are accepted ONLY from origins in
-// VITE_ALLOWED_PARENT_ORIGINS (comma-separated; dev default localhost:3000),
+// Origin discipline: messages are accepted ONLY from the first-party origins
+// baked in below plus any in VITE_ALLOWED_PARENT_ORIGINS (comma-separated),
 // and every outbound message targets the specific origin that sent `load`
 // (until then, `ready` targets the allowlist entries, never "*").
 
 import { SuperDoc } from "superdoc";
 import "superdoc/style.css";
 
-const DEFAULT_ALLOWED =
-  "http://localhost:3000,https://deal-oracle-web-novadominion.vercel.app,https://deal-oracle-web-git-file-viewers-native-novadominion.vercel.app";
-const allowedOrigins = (import.meta.env.VITE_ALLOWED_PARENT_ORIGINS || DEFAULT_ALLOWED)
-  .split(",")
-  .map((value) => value.trim())
-  .filter(Boolean);
+// Every origin deal-oracle-web is actually served from. A Vercel production
+// deployment carries THREE aliases — the bare project URL, the -novadominion
+// one, and -git-main-novadominion — and a parent posting from an alias that
+// isn't listed here gets its message dropped, so the viewer just silently
+// never loads. These are baked in rather than env-only precisely because
+// missing one is invisible until a human opens the wrong URL.
+const DEFAULT_ALLOWED = [
+  "http://localhost:3000",
+  "https://deal-oracle-web.vercel.app",
+  "https://deal-oracle-web-novadominion.vercel.app",
+  "https://deal-oracle-web-git-main-novadominion.vercel.app",
+  "https://deal-oracle-web-git-file-viewers-native-novadominion.vercel.app",
+];
+// VITE_ALLOWED_PARENT_ORIGINS ADDS origins (extra previews, a custom domain);
+// it does not replace the first-party set above.
+const allowedOrigins = [
+  ...new Set(
+    [...DEFAULT_ALLOWED, ...(import.meta.env.VITE_ALLOWED_PARENT_ORIGINS || "").split(",")]
+      .map((value) => value.trim())
+      .filter(Boolean),
+  ),
+];
 
 const statusEl = document.getElementById("status");
 const MODES = new Set(["editing", "suggesting", "viewing"]);
