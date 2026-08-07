@@ -67,6 +67,7 @@ let superdoc = null;
 let parentOrigin = null;
 let saveUrl = null;
 let dirtySent = false;
+let ready = false;
 
 function setStatus(text) {
   if (text === null) {
@@ -90,7 +91,10 @@ function fail(message) {
 }
 
 function markDirty() {
-  if (dirtySent) return;
+  // SuperDoc fires onEditorUpdate while it builds the initial document, before
+  // onReady — reporting that as "dirty" makes a freshly opened file claim
+  // unsaved changes and enables Save with nothing to save.
+  if (!ready || dirtySent) return;
   dirtySent = true;
   send({ type: "dirty" });
 }
@@ -102,6 +106,7 @@ async function handleLoad(data) {
   }
   saveUrl = typeof data.saveUrl === "string" && /^https:\/\//.test(data.saveUrl) ? data.saveUrl : null;
   dirtySent = false;
+  ready = false;
   setStatus("Loading document…");
 
   if (superdoc) {
@@ -152,6 +157,7 @@ async function handleLoad(data) {
       contained: true,
       toolbar: "#toolbar",
       onReady: () => {
+        ready = true;
         setStatus(null);
         send({ type: "loaded", fileName });
       },
@@ -267,7 +273,6 @@ window.addEventListener("message", (event) => {
           proseMirrorNodes: countDeep(".ProseMirror"),
           shadowRoots: [...document.querySelectorAll("*")].filter((el) => el.shadowRoot).length,
           editorElChildren: editorEl?.children?.length ?? null,
-          editorElHtml: (editorEl?.innerHTML ?? "").slice(0, 600),
           activeElement: document.activeElement?.className || document.activeElement?.tagName || null,
         },
       });
