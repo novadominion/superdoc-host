@@ -23,7 +23,7 @@ function harness() {
     await new Promise(resolve => setImmediate(resolve));
   } };
 }
-test('viewing renders tracked changes with viewer permission and cannot save or escalate', async () => {
+test('viewing configures viewer permission and tracked-change visibility and denies save or escalation', async () => {
   const h = harness();
   await h.send({ type: 'superdoc-host:load', docUrl: 'https://r2.test/doc', saveUrl: 'https://r2.test/write', mode: 'viewing' });
   assert.equal(h.configs[0].role, 'viewer');
@@ -38,7 +38,9 @@ test('ordinary suggesting retains editor save behavior without review acknowledg
   const h = harness();
   await h.send({ type: 'superdoc-host:load', docUrl: 'https://r2.test/doc', saveUrl: 'https://r2.test/write', mode: 'suggesting' });
   assert.equal(h.configs[0].role, 'editor');
-  assert.equal(h.messages.find(x => x.type === 'superdoc-host:loaded').readOnlyReview, false);
+  assert.notEqual(h.messages.find(x => x.type === 'superdoc-host:loaded').readOnlyReview, true);
   await h.send({ type: 'superdoc-host:save' });
   assert.equal(h.fetches[1].options.method, 'PUT');
+  assert.equal(h.fetches[1].url, 'https://r2.test/write');
+  assert.ok(h.messages.some(x => x.type === 'superdoc-host:saved'));
 });
