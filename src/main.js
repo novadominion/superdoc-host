@@ -68,6 +68,7 @@ let parentOrigin = null;
 let saveUrl = null;
 let dirtySent = false;
 let ready = false;
+let readOnlyReview = false;
 
 function setStatus(text) {
   if (text === null) {
@@ -104,7 +105,9 @@ async function handleLoad(data) {
     fail("load requires an https docUrl");
     return;
   }
-  saveUrl = typeof data.saveUrl === "string" && /^https:\/\//.test(data.saveUrl) ? data.saveUrl : null;
+  const isReadOnlyReview = data.mode === "viewing";
+  readOnlyReview = isReadOnlyReview;
+  saveUrl = !readOnlyReview && typeof data.saveUrl === "string" && /^https:\/\//.test(data.saveUrl) ? data.saveUrl : null;
   dirtySent = false;
   ready = false;
   setStatus("Loading document…");
@@ -152,14 +155,15 @@ async function handleLoad(data) {
       documentMode: mode,
       // Permission axis, separate from documentMode. Without it the editor
       // renders but every mutation is refused.
-      role: "editor",
+      role: isReadOnlyReview ? "viewer" : "editor",
+      trackChanges: { visible: isReadOnlyReview },
       user,
       contained: true,
       toolbar: "#toolbar",
       onReady: () => {
         ready = true;
         setStatus(null);
-        send({ type: "loaded", fileName });
+        send({ type: "loaded", fileName, readOnlyReview: isReadOnlyReview });
       },
       onException: ({ error }) => {
         fail(`SuperDoc failed to load the document: ${error?.message ?? String(error)}`);
@@ -172,6 +176,10 @@ async function handleLoad(data) {
 }
 
 async function handleSave() {
+  if (readOnlyReview) {
+    fail("This document is open for read-only review; saving is unavailable");
+    return;
+  }
   if (!superdoc) {
     fail("save requested before a document was loaded");
     return;
@@ -214,6 +222,10 @@ window.addEventListener("message", (event) => {
       void handleSave();
       break;
     case "set-mode": {
+      if (readOnlyReview && data.mode !== "viewing") {
+        fail("This document is open for read-only review; mode changes are unavailable");
+        break;
+      }
       if (superdoc && MODES.has(data.mode)) superdoc.setDocumentMode?.(data.mode);
       break;
     }
