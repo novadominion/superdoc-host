@@ -16,6 +16,15 @@
         background: #f5f5f4; z-index: 10;
       }
       #status.hidden { display: none; }
+      /* chrome "page": the parent draws the frame; show only the page. */
+      html:has(#frame[data-chrome="page"]), html:has(#frame[data-chrome="page"]) body { background: transparent; }
+      #frame[data-chrome="page"] #toolbar { display: none; }
+      #frame[data-chrome="page"] #editor { padding: 24px 16px 48px; box-sizing: border-box; }
+      #frame[data-chrome="page"] .superdoc { justify-content: center; }
+      #frame[data-chrome="page"] .superdoc__layers { zoom: var(--page-fit, 1); }
+      #frame[data-chrome="page"] .superdoc-page {
+        box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.06), 0 2px 12px rgba(15, 23, 42, 0.08);
+      }
     </style>
   </head>
   <body>

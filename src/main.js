@@ -8,7 +8,9 @@
 //
 // Bridge protocol (all messages are {type: "superdoc-host:*", ...}):
 //   host  -> parent  ready                        (host booted, awaiting load)
-//   parent -> host   load {docUrl, saveUrl?, user?, mode?, fileName?}
+//   parent -> host   load {docUrl, saveUrl?, user?, mode?, fileName?, chrome?}
+//                    chrome "page" = no toolbar, just the page on a transparent
+//                    canvas, for a parent that draws its own frame (Lab)
 //   host  -> parent  loaded {fileName}
 //   host  -> parent  error {message}
 //   parent -> host   save                         (export + PUT to saveUrl)
@@ -58,6 +60,26 @@ const allowedOrigins = [
       .filter(Boolean),
   ),
 ];
+// deal-oracle-web's own preview deployments (`-<hash>-` and `-git-<branch>-`),
+// which no fixed list can name in advance. They sit behind Vercel deployment
+// protection, and a parent can only hand this host URLs it already holds.
+const PREVIEW_ORIGIN = /^https:\/\/deal-oracle-web-(?:git-[a-z0-9-]+|[a-z0-9]+)-novadominion\.vercel\.app$/;
+const isAllowedOrigin = (origin) => allowedOrigins.includes(origin) || PREVIEW_ORIGIN.test(origin);
+
+// Before a parent engages, `ready` goes to every allowed origin. A preview
+// parent is not in the list, so add the embedding page's origin when the
+// browser reports it and it is allowed.
+function embedderOrigin() {
+  try {
+    const ancestor = window.location?.ancestorOrigins?.[0];
+    if (ancestor) return ancestor;
+    return document.referrer ? new URL(document.referrer).origin : null;
+  } catch {
+    return null;
+  }
+}
+const embedder = embedderOrigin();
+const readyTargets = embedder && isAllowedOrigin(embedder) && !allowedOrigins.includes(embedder) ? [...allowedOrigins, embedder] : allowedOrigins;
 
 const statusEl = document.getElementById("status");
 const MODES = new Set(["editing", "suggesting", "viewing"]);
@@ -69,6 +91,18 @@ let saveUrl = null;
 let dirtySent = false;
 let ready = false;
 let readOnlyReview = false;
+let pageWidth = 0;
+let pageObserver = null;
+
+// chrome "page": scale the page down to fit a narrow frame (a split view, a phone), never up.
+function fitPage() {
+  const editor = document.getElementById("editor");
+  const layers = document.querySelector?.(".superdoc__layers");
+  if (!layers || !editor) return;
+  if (!pageWidth) pageWidth = layers.getBoundingClientRect().width;
+  const room = editor.clientWidth - 32;
+  if (pageWidth > 0 && room > 0) document.documentElement.style.setProperty("--page-fit", String(Math.min(1, room / pageWidth)));
+}
 
 function setStatus(text) {
   if (text === null) {
@@ -80,7 +114,7 @@ function setStatus(text) {
 }
 
 function send(message) {
-  const targets = parentOrigin ? [parentOrigin] : allowedOrigins;
+  const targets = parentOrigin ? [parentOrigin] : readyTargets;
   for (const origin of targets) {
     window.parent.postMessage({ ...message, type: `superdoc-host:${message.type}` }, origin);
   }
@@ -124,6 +158,12 @@ async function handleLoad(data) {
   }
 
   const mode = MODES.has(data.mode) ? data.mode : "suggesting";
+  const pageOnly = data.chrome === "page";
+  document.getElementById("frame").dataset.chrome = pageOnly ? "page" : "";
+  pageObserver?.disconnect();
+  pageObserver = null;
+  pageWidth = 0;
+  document.documentElement?.style.removeProperty("--page-fit");
   const fileName = typeof data.fileName === "string" ? data.fileName : "document.docx";
   const user =
     data.user && typeof data.user.name === "string"
@@ -159,10 +199,17 @@ async function handleLoad(data) {
       trackChanges: { visible: isReadOnlyReview },
       user,
       contained: true,
-      toolbar: "#toolbar",
+      ...(pageOnly ? {} : { toolbar: "#toolbar" }),
       onReady: () => {
         ready = true;
         setStatus(null);
+        if (pageOnly) {
+          fitPage();
+          if (typeof ResizeObserver !== "undefined") {
+            pageObserver = new ResizeObserver(fitPage);
+            pageObserver.observe(document.getElementById("editor"));
+          }
+        }
         send({ type: "loaded", fileName, readOnlyReview: isReadOnlyReview });
       },
       onException: ({ error }) => {
@@ -209,7 +256,7 @@ async function handleSave() {
 }
 
 window.addEventListener("message", (event) => {
-  if (!allowedOrigins.includes(event.origin)) return;
+  if (!isAllowedOrigin(event.origin)) return;
   const data = event.data;
   if (!data || typeof data.type !== "string" || !data.type.startsWith("superdoc-host:")) return;
   if (parentOrigin === null) parentOrigin = event.origin;
