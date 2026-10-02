@@ -6,7 +6,7 @@ const source = (await readFile(new URL('../src/main.js', import.meta.url), 'utf8
 function harness() {
   const messages = [], configs = [], fetches = [], modes = [];
   let listener;
-  const element = { classList: { add() {}, remove() {} }, replaceChildren() {}, children: [] };
+  const element = { classList: { add() {}, remove() {} }, replaceChildren() {}, children: [], dataset: {} };
   class SuperDoc {
     constructor(config) { configs.push(config); queueMicrotask(config.onReady); }
     setDocumentMode(mode) { modes.push(mode); }
