@@ -25,13 +25,13 @@ const PREVIEW = 'https://deal-oracle-web-git-codex-lab-studio-foundation-novadom
 const load = { type: 'superdoc-host:load', docUrl: 'https://r2.test/doc', mode: 'viewing' };
 
 test('a deal-oracle-web preview may drive the host; other origins may not', async () => {
-  for (const origin of [PREVIEW, 'https://deal-oracle-web-a1b2c3d4e-novadominion.vercel.app']) {
+  for (const origin of [PREVIEW, 'https://deal-oracle-web-a1b2c3d4e-novadominion.vercel.app', 'https://deal-oracle-j3mps5kpn-novadominion.vercel.app']) {
     const h = harness();
     await h.send(origin, load);
     assert.equal(h.configs.length, 1, origin);
     assert.ok(h.posts.some(p => p.data.type === 'superdoc-host:loaded' && p.origin === origin), origin);
   }
-  for (const origin of ['https://evil.example', 'https://deal-oracle-web-git-x-novadominion.vercel.app.evil.example', 'http://deal-oracle-web-git-x-novadominion.vercel.app', 'https://other-app-git-x-novadominion.vercel.app']) {
+  for (const origin of ['https://evil.example', 'https://deal-oracle-web-git-x-novadominion.vercel.app.evil.example', 'http://deal-oracle-web-git-x-novadominion.vercel.app', 'https://other-app-git-x-novadominion.vercel.app', 'https://deal-oracle-j3mps5kpn-evilteam.vercel.app', 'https://deal-oracle-evil-novadominion.vercel.app']) {
     const h = harness();
     await h.send(origin, load);
     assert.equal(h.configs.length, 0, origin);

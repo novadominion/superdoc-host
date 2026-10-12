@@ -60,10 +60,12 @@ const allowedOrigins = [
       .filter(Boolean),
   ),
 ];
-// deal-oracle-web's own preview deployments (`-<hash>-` and `-git-<branch>-`),
-// which no fixed list can name in advance. They sit behind Vercel deployment
+// deal-oracle-web's own preview deployments, which no fixed list can name in
+// advance. The branch alias is `deal-oracle-web-git-<branch>-`, but Vercel names
+// the per-deployment URL `deal-oracle-<9 char hash>-` (no `-web`), and that is
+// the one a pull request's checks link to. They sit behind Vercel deployment
 // protection, and a parent can only hand this host URLs it already holds.
-const PREVIEW_ORIGIN = /^https:\/\/deal-oracle-web-(?:git-[a-z0-9-]+|[a-z0-9]+)-novadominion\.vercel\.app$/;
+const PREVIEW_ORIGIN = /^https:\/\/deal-oracle-(?:web-(?:git-[a-z0-9-]+|[a-z0-9]+)|[a-z0-9]{9})-novadominion\.vercel\.app$/;
 const isAllowedOrigin = (origin) => allowedOrigins.includes(origin) || PREVIEW_ORIGIN.test(origin);
 
 // Before a parent engages, `ready` goes to every allowed origin. A preview
