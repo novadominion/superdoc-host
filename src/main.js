@@ -17,6 +17,8 @@
 //   host  -> parent  saved {size}
 //   parent -> host   set-mode {mode}              (editing|suggesting|viewing)
 //   host  -> parent  dirty                        (first content change since load/save)
+//   host  -> parent  selection {text}             (selected document text, "" when cleared;
+//                                                  debounced, so a parent can offer "add to chat")
 //
 // Origin discipline: messages are accepted ONLY from the first-party origins
 // baked in below plus any in VITE_ALLOWED_PARENT_ORIGINS (comma-separated),
@@ -95,6 +97,34 @@ let ready = false;
 let readOnlyReview = false;
 let pageWidth = 0;
 let pageObserver = null;
+let selectionTimer = null;
+let selectionSent = "";
+
+// Selected text never leaves for anyone but the parent that sent `load`; cap it
+// so a select-all on a long brief is not one enormous message.
+const SELECTION_LIMIT = 20000;
+const SELECTION_DEBOUNCE_MS = 150;
+
+function selectedText(editor) {
+  try {
+    const { from, to, empty } = editor.state.selection;
+    if (empty) return "";
+    return editor.state.doc.textBetween(from, to, "\n", " ").trim().slice(0, SELECTION_LIMIT);
+  } catch {
+    return "";
+  }
+}
+
+function reportSelection(editor) {
+  if (!parentOrigin) return;
+  clearTimeout(selectionTimer);
+  selectionTimer = setTimeout(() => {
+    const text = selectedText(editor);
+    if (text === selectionSent) return;
+    selectionSent = text;
+    send({ type: "selection", text });
+  }, SELECTION_DEBOUNCE_MS);
+}
 
 // chrome "page": scale the page down to fit a narrow frame (a split view, a phone), never up.
 function fitPage() {
@@ -146,6 +176,9 @@ async function handleLoad(data) {
   saveUrl = !readOnlyReview && typeof data.saveUrl === "string" && /^https:\/\//.test(data.saveUrl) ? data.saveUrl : null;
   dirtySent = false;
   ready = false;
+  if (selectionTimer) clearTimeout(selectionTimer);
+  if (selectionSent) send({ type: "selection", text: "" });
+  selectionSent = "";
   setStatus("Loading document…");
 
   if (superdoc) {
@@ -218,6 +251,9 @@ async function handleLoad(data) {
         fail(`SuperDoc failed to load the document: ${error?.message ?? String(error)}`);
       },
       onEditorUpdate: markDirty,
+      onEditorCreate: ({ editor }) => {
+        editor?.on?.("selectionUpdate", ({ editor: current }) => reportSelection(current ?? editor));
+      },
     });
   } catch (error) {
     fail(`SuperDoc init failed: ${error instanceof Error ? error.message : String(error)}`);
